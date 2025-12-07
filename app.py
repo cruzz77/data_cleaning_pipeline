@@ -4,7 +4,6 @@ import numpy as np
 import time
 import yfinance as yf
 
-# NEW cleaner functions (no class)
 from cleaner import clean_price, reset_history
 
 from signals import momentum, rolling_volatility, moving_average, vwap
@@ -48,7 +47,7 @@ vol_window = st.sidebar.number_input("Volatility Window", 2, 200, 20)
 ma_short = st.sidebar.number_input("MA Short Window", 1, 200, 5)
 ma_long = st.sidebar.number_input("MA Long Window", 1, 200, 20)
 
-# --- store params ---
+#store params 
 params = {
     "mom_window": int(mom_window),
     "vol_window": int(vol_window),
@@ -58,9 +57,7 @@ params = {
     "clean_threshold": float(z_threshold)
 }
 
-# -----------------------
 # PROCESS FUNCTION
-# -----------------------
 def process_df(df, params):
 
     reset_history()  # reset clean buffer each run
@@ -94,9 +91,7 @@ def process_df(df, params):
     return df_out
 
 
-# -----------------------
 # MODE 1: UPLOAD CSV
-# -----------------------
 if data_mode == "Upload CSV":
 
     if uploaded_file:
@@ -125,9 +120,7 @@ if data_mode == "Upload CSV":
         st.info("Upload a CSV or use the Real-Time Feed option from the sidebar.")
 
 
-# -----------------------
 # MODE 2: REAL-TIME FEED
-# -----------------------
 elif data_mode == "Real-Time Feed (Yahoo Finance)":
     ticker = st.sidebar.text_input("Ticker symbol", "AAPL")
     refresh_speed = st.sidebar.slider("Refresh Interval (seconds)", 1, 30, 5)
