@@ -1,39 +1,46 @@
 import numpy as np
 
-class ZScoreCleaner:
+# Persistent history list (acts like internal memory)
+history = []
+
+def reset_history():
+    """Clears stored price history."""
+    global history
+    history = []
+
+def is_outlier(price, window=20, threshold=3):
     """
-    Rolling Z-score based spike/outlier cleaner.
-    If |price - mean| / std > threshold, replace with rolling mean.
+    Determines if the incoming price is an outlier based on rolling Z-score.
     """
+    global history
 
-    def __init__(self, window=20, threshold=3):
-        self.window = window
-        self.threshold = threshold
-        self.history = []
+    # Need enough data to compute rolling stats
+    if len(history) < 5:
+        return False
 
-    def reset(self):
-        self.history = []
+    window_slice = np.array(history[-window:])
+    mean = np.mean(window_slice)
+    std = np.std(window_slice)
 
-    def is_outlier(self, price):
-        if len(self.history) < 5:
-            return False
+    if std == 0:
+        return False
 
-        window_slice = np.array(self.history[-self.window:])
-        mean = np.mean(window_slice)
-        std = np.std(window_slice)
+    z = abs(price - mean) / std
+    return z > threshold
 
-        if std == 0:
-            return False
+def clean_price(price, window=20, threshold=3):
+    """
+    Cleans the incoming price:
+    - If it's an outlier → replace with rolling mean
+    - Otherwise → keep original
+    """
+    global history
 
-        z = abs(price - mean) / std
-        return z > self.threshold
+    if is_outlier(price, window, threshold):
+        window_slice = np.array(history[-window:])
+        cleaned = float(np.mean(window_slice))
+    else:
+        cleaned = price
 
-    def clean(self, price):
-        if self.is_outlier(price):
-            window_slice = np.array(self.history[-self.window:])
-            cleaned = float(np.mean(window_slice))
-        else:
-            cleaned = price
-
-        self.history.append(cleaned)
-        return cleaned
+    history.append(cleaned)
+    return cleaned

@@ -1,13 +1,3 @@
-# signals.py
-"""
-Simple signal generators used by the Streamlit UI.
-
-- momentum(prices, window): price_now - price_window_ago
-- rolling_volatility(prices, window): std of the last window prices
-- moving_average(prices, window): simple moving average
-- vwap(prices, volumes, window): volume-weighted average price over window
-"""
-
 import numpy as np
 
 def momentum(prices, window=3):

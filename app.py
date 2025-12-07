@@ -1,16 +1,14 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import time
 import yfinance as yf
 
-from cleaner import ZScoreCleaner
+# NEW cleaner functions (no class)
+from cleaner import clean_price, reset_history
+
 from signals import momentum, rolling_volatility, moving_average, vwap
 
-# ------------------------------------------------------------
-# PAGE CONFIG
-# ------------------------------------------------------------
 st.set_page_config(page_title="QuantClean Pro", layout="wide")
 st.title("Real-Time Market Data Cleaning Dashboard")
 
@@ -28,9 +26,6 @@ Both modes apply project's pipeline:
 - Volume-Weighted Average Price  
 """)
 
-# ------------------------------------------------------------
-# SIDEBAR — CLEAN + FINAL VERSION
-# ------------------------------------------------------------
 st.sidebar.header("📁 Data Source")
 
 data_mode = st.sidebar.radio(
@@ -38,7 +33,6 @@ data_mode = st.sidebar.radio(
     ("Upload CSV", "Real-Time Feed (Yahoo Finance)")
 )
 
-# ONLY ONE FILE UPLOADER EXISTS NOW (FIX)
 uploaded_file = st.sidebar.file_uploader(
     "Upload CSV File",
     type=["csv"],
@@ -54,35 +48,36 @@ vol_window = st.sidebar.number_input("Volatility Window", 2, 200, 20)
 ma_short = st.sidebar.number_input("MA Short Window", 1, 200, 5)
 ma_long = st.sidebar.number_input("MA Long Window", 1, 200, 20)
 
-cleaner = ZScoreCleaner(window_clean, z_threshold)
+# --- store params ---
+params = {
+    "mom_window": int(mom_window),
+    "vol_window": int(vol_window),
+    "ma_short": int(ma_short),
+    "ma_long": int(ma_long),
+    "clean_window": int(window_clean),
+    "clean_threshold": float(z_threshold)
+}
 
-# Real-time mode special controls
-if data_mode == "Real-Time Feed (Yahoo Finance)":
-    ticker = st.sidebar.text_input("Ticker symbol", "AAPL")
-    refresh_speed = st.sidebar.slider("Refresh Interval (seconds)", 1, 30, 5)
-
-# ------------------------------------------------------------
-# METRICS AREA
-# ------------------------------------------------------------
-st.subheader("Quick Metrics")
-raw_metric = st.empty()
-clean_metric = st.empty()
-mom_metric = st.empty()
-vol_metric = st.empty()
-vwap_metric = st.empty()
-
-# ------------------------------------------------------------
+# -----------------------
 # PROCESS FUNCTION
-# ------------------------------------------------------------
-def process_df(df, cleaner_obj, params):
-    volumes = df["volume"].tolist() if "volume" in df else [0] * len(df)
+# -----------------------
+def process_df(df, params):
+
+    reset_history()  # reset clean buffer each run
 
     cleaned, moms, vols, ma_s, ma_l, vwaps = [], [], [], [], [], []
+    volumes = df["volume"].tolist() if "volume" in df else [0] * len(df)
 
     for i, raw in enumerate(df["price"]):
-        c = cleaner_obj.clean(float(raw))
-        cleaned.append(c)
+        # clean price
+        cleaned_val = clean_price(
+            float(raw),
+            window=params["clean_window"],
+            threshold=params["clean_threshold"]
+        )
+        cleaned.append(cleaned_val)
 
+        # pipeline signals
         moms.append(momentum(cleaned, params["mom_window"]))
         vols.append(rolling_volatility(cleaned, params["vol_window"]))
         ma_s.append(moving_average(cleaned, params["ma_short"]))
@@ -98,16 +93,10 @@ def process_df(df, cleaner_obj, params):
     df_out["vwap"] = vwaps
     return df_out
 
-params = {
-    "mom_window": int(mom_window),
-    "vol_window": int(vol_window),
-    "ma_short": int(ma_short),
-    "ma_long": int(ma_long),
-}
 
-# ------------------------------------------------------------
-# MODE 1: CSV UPLOAD — CLEAN + WORKING
-# ------------------------------------------------------------
+# -----------------------
+# MODE 1: UPLOAD CSV
+# -----------------------
 if data_mode == "Upload CSV":
 
     if uploaded_file:
@@ -117,8 +106,7 @@ if data_mode == "Upload CSV":
             st.error("CSV must contain a 'price' column.")
             st.stop()
 
-        cleaner.reset()
-        df_out = process_df(df, cleaner, params)
+        df_out = process_df(df, params)
 
         st.subheader("📊 Raw vs Cleaned Prices")
         st.line_chart(df_out[["price", "cleaned_price"]])
@@ -133,52 +121,45 @@ if data_mode == "Upload CSV":
         st.subheader("📄 Output Table")
         st.dataframe(df_out)
 
-        # Metrics
-        raw_metric.metric("Raw Price", f"{df_out['price'].iloc[-1]:.2f}")
-        clean_metric.metric("Cleaned", f"{df_out['cleaned_price'].iloc[-1]:.2f}")
-        mom_metric.metric("Momentum", str(df_out['momentum'].iloc[-1]))
-        vol_metric.metric("Volatility", str(df_out['volatility'].iloc[-1]))
-        vwap_metric.metric("VWAP", str(df_out['vwap'].iloc[-1]))
-
     else:
         st.info("Upload a CSV or use the Real-Time Feed option from the sidebar.")
 
-# ------------------------------------------------------------
-# MODE 2: REAL-TIME YAHOO FINANCE — CLEAN + WORKING
-# ------------------------------------------------------------
-elif data_mode == "Real-Time Feed (Yahoo Finance)":
 
-    # Ensures ticker exists BEFORE using it
+# -----------------------
+# MODE 2: REAL-TIME FEED
+# -----------------------
+elif data_mode == "Real-Time Feed (Yahoo Finance)":
+    ticker = st.sidebar.text_input("Ticker symbol", "AAPL")
+    refresh_speed = st.sidebar.slider("Refresh Interval (seconds)", 1, 30, 5)
+
     st.subheader(f"📡 Live Feed — {ticker}")
 
-    # Session initialization
     if "live_prices" not in st.session_state:
         st.session_state.live_prices = []
         st.session_state.live_vols = []
         st.session_state.live_running = False
 
-    # Control buttons
     colA, colB, colC = st.columns(3)
     with colA:
         if st.button("▶ Start Feed"):
             st.session_state.live_running = True
+
     with colB:
         if st.button("⏸ Pause Feed"):
             st.session_state.live_running = False
+
     with colC:
         if st.button("🔄 Reset Feed"):
             st.session_state.live_running = False
             st.session_state.live_prices = []
             st.session_state.live_vols = []
-            cleaner.reset()
+            reset_history()
             st.rerun()
 
-    # UI placeholders
     chart_area = st.empty()
     mom_area = st.empty()
     table_area = st.empty()
 
-    # Live feed running logic
     if st.session_state.live_running:
 
         try:
@@ -198,17 +179,11 @@ elif data_mode == "Real-Time Feed (Yahoo Finance)":
             "volume": st.session_state.live_vols
         })
 
-        df_out = process_df(df_live, cleaner, params)
+        df_out = process_df(df_live, params)
 
         chart_area.line_chart(df_out[["price", "cleaned_price"]])
         mom_area.line_chart(df_out["momentum"].fillna(0))
         table_area.dataframe(df_out.tail(200))
-
-        raw_metric.metric("Raw", f"{df_out['price'].iloc[-1]:.2f}")
-        clean_metric.metric("Cleaned", f"{df_out['cleaned_price'].iloc[-1]:.2f}")
-        mom_metric.metric("Momentum", str(df_out['momentum'].iloc[-1]))
-        vol_metric.metric("Volatility", str(df_out['volatility'].iloc[-1]))
-        vwap_metric.metric("VWAP", str(df_out['vwap'].iloc[-1]))
 
         time.sleep(refresh_speed)
         st.rerun()

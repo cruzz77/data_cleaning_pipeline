@@ -1,4 +1,3 @@
-# generate_sample_csv.py
 import csv
 from datetime import datetime, timedelta
 import random
