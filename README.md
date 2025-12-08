@@ -1,7 +1,7 @@
-# Data Cleaning Pipeline using Z-Test
+# Real Time Data Cleaning Pipeline using Z-Test
 
 Python-based pipeline to automatically detect and remove outliers from datasets using the Z-Test statistical method.
-This project is designed for data preprocessing, anomaly detection, and ensuring clean input data for machine learning or analytics pipelines.
+This project can take Real time Data from yfinance or a user can upload a csv file and it is designed for data preprocessing, anomaly detection, and ensuring clean input data for machine learning or analytics pipelines.
 
 ## Features
 
